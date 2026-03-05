@@ -76,7 +76,8 @@
 
 ### 功能实现
 - [x] `!persona set <id>`
-- [ ] `!persona create <id>`
+- [x] `!persona create <id> "名称" "提示词"`
+- [x] `!persona delete <id>`
 - [x] `!persona list`
 - [x] `!persona off`
 - [x] `!persona info <id>`

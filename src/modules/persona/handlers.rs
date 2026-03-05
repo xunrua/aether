@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 
 use crate::command::{CommandContext, CommandHandler, Permission};
-use crate::store::PersonaStore;
-use crate::ui::{info_card, success, error, warning};
+use crate::store::{Persona, PersonaStore};
+use crate::ui::{error, info_card, success, warning};
 
 /// Persona 命令处理器
 pub struct PersonaHandler {
@@ -31,7 +31,7 @@ impl CommandHandler for PersonaHandler {
     }
 
     fn usage(&self) -> &str {
-        "persona <set|list|off|info>"
+        "persona <set|list|off|info|create|delete>"
     }
 
     fn permission(&self) -> Permission {
@@ -46,6 +46,8 @@ impl CommandHandler for PersonaHandler {
             Some("list") => self.handle_list(ctx).await,
             Some("off") => self.handle_off(ctx).await,
             Some("info") => self.handle_info(ctx).await,
+            Some("create") => self.handle_create(ctx).await,
+            Some("delete") => self.handle_delete(ctx).await,
             _ => self.handle_help(ctx).await,
         }
     }
@@ -58,6 +60,11 @@ impl PersonaHandler {
             ("!persona set <id>", "设置当前房间人设（需要管理员权限）"),
             ("!persona off", "关闭当前房间人设（需要管理员权限）"),
             ("!persona info <id>", "查看人设详情"),
+            (
+                "!persona create <id> \'<名称>\' \'<提示词>\'",
+                "创建自定义人设（需要管理员权限）",
+            ),
+            ("!persona delete <id>", "删除自定义人设（需要管理员权限）"),
         ];
         let html = info_card("Persona 命令", &items);
         send_html(&ctx.room, &html).await
@@ -76,7 +83,10 @@ impl PersonaHandler {
             .map(|p| {
                 let emoji = p.avatar_emoji.as_deref().unwrap_or("");
                 let builtin = if p.is_builtin { " [内置]" } else { "" };
-                (p.id.as_str(), Box::leak(format!("{} {}{}", emoji, p.name, builtin).into_boxed_str()) as &str)
+                (
+                    p.id.as_str(),
+                    Box::leak(format!("{} {}{}", emoji, p.name, builtin).into_boxed_str()) as &str,
+                )
             })
             .collect();
 
@@ -86,7 +96,10 @@ impl PersonaHandler {
 
     async fn handle_set(&self, ctx: &CommandContext<'_>) -> Result<()> {
         // 检查权限 - 需要 RoomMod
-        if !Permission::RoomMod.check(&ctx.room, &ctx.sender, ctx.bot_owners).await {
+        if !Permission::RoomMod
+            .check(&ctx.room, &ctx.sender, ctx.bot_owners)
+            .await
+        {
             let html = error("权限不足: 需要房间管理员权限");
             return send_html(&ctx.room, &html).await;
         }
@@ -103,7 +116,8 @@ impl PersonaHandler {
                 let room_id = ctx.room_id().to_string();
                 let set_by = ctx.sender.to_string();
 
-                self.store.set_room_persona(&room_id, &persona_id, &set_by)?;
+                self.store
+                    .set_room_persona(&room_id, &persona_id, &set_by)?;
 
                 let emoji = persona.avatar_emoji.as_deref().unwrap_or("");
                 let html = success(&format!("已设置人设: {} {}", emoji, persona.name));
@@ -118,7 +132,10 @@ impl PersonaHandler {
 
     async fn handle_off(&self, ctx: &CommandContext<'_>) -> Result<()> {
         // 检查权限 - 需要 RoomMod
-        if !Permission::RoomMod.check(&ctx.room, &ctx.sender, ctx.bot_owners).await {
+        if !Permission::RoomMod
+            .check(&ctx.room, &ctx.sender, ctx.bot_owners)
+            .await
+        {
             let html = error("权限不足: 需要房间管理员权限");
             return send_html(&ctx.room, &html).await;
         }
@@ -149,8 +166,15 @@ impl PersonaHandler {
 
                 let items = vec![
                     ("ID", persona.id.as_str()),
-                    ("名称", Box::leak(format!("{} {}{}", emoji, persona.name, builtin).into_boxed_str()) as &str),
-                    ("提示词预览", Box::leak(prompt_preview.into_boxed_str()) as &str),
+                    (
+                        "名称",
+                        Box::leak(format!("{} {}{}", emoji, persona.name, builtin).into_boxed_str())
+                            as &str,
+                    ),
+                    (
+                        "提示词预览",
+                        Box::leak(prompt_preview.into_boxed_str()) as &str,
+                    ),
                 ];
 
                 let html = info_card("人设详情", &items);
@@ -158,6 +182,89 @@ impl PersonaHandler {
             }
             None => {
                 let html = error(&format!("人设不存在: {}", persona_id));
+                send_html(&ctx.room, &html).await
+            }
+        }
+    }
+
+    async fn handle_create(&self, ctx: &CommandContext<'_>) -> Result<()> {
+        // 检查权限 - 需要 RoomMod
+        if !Permission::RoomMod
+            .check(&ctx.room, &ctx.sender, ctx.bot_owners)
+            .await
+        {
+            let html = error("权限不足: 需要房间管理员权限");
+            return send_html(&ctx.room, &html).await;
+        }
+
+        // 参数格式: !persona create <id> "名称" "提示词"
+        let args = ctx.sub_args();
+        if args.len() < 3 {
+            let html = error("参数不足\n用法: !persona create <id> \"<名称>\" \"<提示词>\"");
+            return send_html(&ctx.room, &html).await;
+        }
+
+        let id = args[0].to_string();
+        let name = args[1].to_string();
+        let system_prompt = args[2..].join(" ");
+
+        // 验证 ID 格式（只允许字母、数字、连字符、下划线）
+        if !id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
+            let html = error("ID 只能包含字母、数字、连字符和下划线");
+            return send_html(&ctx.room, &html).await;
+        }
+
+        // 检查 ID 是否已存在
+        if self.store.get_by_id(&id)?.is_some() {
+            let html = error(&format!("人设 ID 已存在: {}", id));
+            return send_html(&ctx.room, &html).await;
+        }
+
+        // 创建人设
+        let persona = Persona {
+            id,
+            name,
+            system_prompt,
+            avatar_emoji: None,
+            is_builtin: false,
+            created_by: Some(ctx.sender.to_string()),
+        };
+
+        self.store.create_persona(&persona)?;
+
+        let html = success(&format!(
+            "已创建人设: {}\n使用 !persona set {} 来启用",
+            persona.name, persona.id
+        ));
+        send_html(&ctx.room, &html).await
+    }
+
+    async fn handle_delete(&self, ctx: &CommandContext<'_>) -> Result<()> {
+        // 检查权限 - 需要 RoomMod
+        if !Permission::RoomMod
+            .check(&ctx.room, &ctx.sender, ctx.bot_owners)
+            .await
+        {
+            let html = error("权限不足: 需要房间管理员权限");
+            return send_html(&ctx.room, &html).await;
+        }
+
+        let persona_id: String = ctx.sub_args().join(" ");
+        if persona_id.is_empty() {
+            let html = error("请提供人设 ID: !persona delete <id>");
+            return send_html(&ctx.room, &html).await;
+        }
+
+        match self.store.delete_persona(&persona_id)? {
+            true => {
+                let html = success(&format!("已删除人设: {}", persona_id));
+                send_html(&ctx.room, &html).await
+            }
+            false => {
+                let html = error(&format!("无法删除: 人设不存在或为内置人设: {}", persona_id));
                 send_html(&ctx.room, &html).await
             }
         }
