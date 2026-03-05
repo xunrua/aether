@@ -97,11 +97,11 @@ impl Config {
             streaming_min_interval_ms: std::env::var("STREAMING_MIN_INTERVAL_MS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(500),
+                .unwrap_or(1000),
             streaming_min_chars: std::env::var("STREAMING_MIN_CHARS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(10),
+                .unwrap_or(50),
             // 日志配置
             log_level: std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
         })

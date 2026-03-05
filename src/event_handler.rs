@@ -91,12 +91,22 @@ impl EventHandler {
 
         // 判断是否应该响应
         let is_direct = room.is_direct().await.unwrap_or(false);
+
+        // 检查是否通过 Intentional Mentions (MSC 3456) 被提及
+        let mentions_bot = original
+            .content
+            .mentions
+            .as_ref()
+            .is_some_and(|m| m.user_ids.contains(&self.bot_user_id));
+
         let should_respond = if is_direct {
             // 私聊：总是响应
             true
         } else {
-            // 房间：检查命令前缀或 @提及
-            text.starts_with(&self.command_prefix) || text.contains(&self.bot_user_id.to_string())
+            // 房间：检查命令前缀、文本中的 user_id（兼容旧客户端）或 mentions 字段（现代客户端）
+            text.starts_with(&self.command_prefix)
+                || text.contains(&self.bot_user_id.to_string())
+                || mentions_bot
         };
 
         if !should_respond {
