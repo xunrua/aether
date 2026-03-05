@@ -48,6 +48,7 @@ pub struct SubCommand {
 }
 
 /// 命令注册表
+#[derive(Clone)]
 pub struct CommandRegistry {
     /// 命令处理器映射
     handlers: HashMap<String, Arc<dyn CommandHandler>>,

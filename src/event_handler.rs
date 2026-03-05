@@ -14,6 +14,7 @@ use matrix_sdk::{
 };
 use tracing::{debug, info, warn};
 
+use crate::command::CommandGateway;
 use crate::config::Config;
 use crate::traits::AiServiceTrait;
 
@@ -45,6 +46,7 @@ pub struct EventHandler<T: AiServiceTrait> {
     ai_service: T,
     bot_user_id: OwnedUserId,
     command_prefix: String,
+    command_gateway: CommandGateway,
     // 流式输出配置
     streaming_enabled: bool,
     streaming_min_interval: Duration,
@@ -53,10 +55,16 @@ pub struct EventHandler<T: AiServiceTrait> {
 
 impl<T: AiServiceTrait> EventHandler<T> {
     pub fn new(ai_service: T, bot_user_id: OwnedUserId, config: &Config) -> Self {
+        let command_gateway = CommandGateway::new(
+            config.command_prefix.clone(),
+            config.bot_owners.clone(),
+        );
+
         Self {
             ai_service,
             bot_user_id,
             command_prefix: config.command_prefix.clone(),
+            command_gateway,
             streaming_enabled: config.streaming_enabled,
             streaming_min_interval: Duration::from_millis(config.streaming_min_interval_ms),
             streaming_min_chars: config.streaming_min_chars,
@@ -68,6 +76,7 @@ impl<T: AiServiceTrait> EventHandler<T> {
         &self,
         ev: matrix_sdk::ruma::events::room::message::SyncRoomMessageEvent,
         room: Room,
+        client: Client,
     ) -> Result<()> {
         // 使用 as_original() 获取原始消息事件
         let original = match ev.as_original() {
@@ -82,6 +91,7 @@ impl<T: AiServiceTrait> EventHandler<T> {
 
         // 获取消息文本
         let text = original.content.body();
+        let event_id = original.event_id.clone();
 
         let room_id = room.room_id();
 
@@ -95,40 +105,39 @@ impl<T: AiServiceTrait> EventHandler<T> {
             .as_ref()
             .is_some_and(|m| m.user_ids.contains(&self.bot_user_id));
 
+        // 检查是否是命令（以命令前缀开头）
+        let is_command = self.command_gateway.is_command(text);
+
+        // 处理命令
+        if is_command {
+            // 尝试通过命令网关分发
+            self.command_gateway
+                .dispatch(
+                    &client,
+                    room.clone(),
+                    original.sender.clone(),
+                    text,
+                    event_id.clone(),
+                )
+                .await?;
+            return Ok(());
+        }
+
+        // 非命令消息：检查是否应该响应 AI
         let should_respond = if is_direct {
             // 私聊：总是响应
             true
         } else {
-            // 房间：检查命令前缀、文本中的 user_id（兼容旧客户端）或 mentions 字段（现代客户端）
-            text.starts_with(&self.command_prefix)
-                || text.contains(&self.bot_user_id.to_string())
-                || mentions_bot
+            // 房间：检查文本中的 user_id（兼容旧客户端）或 mentions 字段（现代客户端）
+            text.contains(&self.bot_user_id.to_string()) || mentions_bot
         };
 
         if !should_respond {
             return Ok(());
         }
 
-        // 处理命令
+        // 处理 AI 对话
         let clean_text = self.extract_message(text);
-
-        if clean_text == "!reset" {
-            let session_id = room_id.to_string();
-            self.ai_service.reset_conversation(&session_id).await;
-            room.send(RoomMessageEventContent::text_plain("会话历史已清除"))
-                .await?;
-            return Ok(());
-        }
-
-        if clean_text == "!help" {
-            let help_text = format!(
-                "可用命令:\n{} <消息> - 与 AI 对话\n!reset - 清除会话历史\n!help - 显示帮助",
-                self.command_prefix
-            );
-            room.send(RoomMessageEventContent::text_plain(help_text))
-                .await?;
-            return Ok(());
-        }
 
         // 生成会话 ID（私聊用用户 ID，房间用房间 ID）
         let session_id = if is_direct {
@@ -348,6 +357,7 @@ mod tests {
             system_prompt: None,
             command_prefix: "!ai ".to_string(),
             max_history: 10,
+            bot_owners: Vec::new(),
             streaming_enabled: false,
             streaming_min_interval_ms: 500,
             streaming_min_chars: 10,

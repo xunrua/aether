@@ -12,6 +12,7 @@ pub struct ParsedCommand<'a> {
 }
 
 /// 命令解析器
+#[derive(Clone)]
 pub struct Parser {
     /// 命令前缀
     prefix: String,

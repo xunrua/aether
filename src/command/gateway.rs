@@ -12,11 +12,12 @@ use super::parser::Parser;
 use super::registry::CommandRegistry;
 
 /// 命令网关，负责路由分发
+#[derive(Clone)]
 pub struct CommandGateway {
     /// 命令解析器
     parser: Parser,
-    /// 命令注册表
-    registry: CommandRegistry,
+    /// 命令注册表（使用 Arc 支持共享）
+    registry: Arc<CommandRegistry>,
     /// Bot 所有者列表
     bot_owners: Vec<String>,
 }
@@ -26,14 +27,17 @@ impl CommandGateway {
     pub fn new(prefix: String, bot_owners: Vec<String>) -> Self {
         Self {
             parser: Parser::new(prefix),
-            registry: CommandRegistry::new(),
+            registry: Arc::new(CommandRegistry::new()),
             bot_owners,
         }
     }
 
     /// 注册命令处理器
     pub fn register(&mut self, handler: Arc<dyn super::registry::CommandHandler>) {
-        self.registry.register(handler);
+        // 由于使用 Arc，需要创建新的 Registry 来注册
+        let mut registry = (*self.registry).clone();
+        registry.register(handler);
+        self.registry = Arc::new(registry);
     }
 
     /// 获取命令解析器

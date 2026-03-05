@@ -1,5 +1,6 @@
 mod ai_service;
 mod bot;
+mod command;
 mod config;
 mod conversation;
 mod event_handler;

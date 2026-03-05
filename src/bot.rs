@@ -78,11 +78,13 @@ impl Bot {
         // 注册消息事件处理器
         self.client.add_event_handler({
             let handler = self.handler;
+            let client = self.client.clone();
             move |ev: matrix_sdk::ruma::events::room::message::SyncRoomMessageEvent,
                   room: matrix_sdk::Room| {
                 let handler = handler.clone();
+                let client = client.clone();
                 async move {
-                    if let Err(e) = handler.handle_message(ev, room).await {
+                    if let Err(e) = handler.handle_message(ev, room, client).await {
                         tracing::error!("处理消息失败: {}", e);
                     }
                 }

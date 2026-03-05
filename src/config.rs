@@ -19,6 +19,7 @@ pub struct Config {
     // 机器人配置
     pub command_prefix: String,
     pub max_history: usize,
+    pub bot_owners: Vec<String>,
 
     // 流式输出配置
     pub streaming_enabled: bool,
@@ -47,6 +48,7 @@ impl Default for Config {
             system_prompt: None,
             command_prefix: "!ai".to_string(),
             max_history: 10,
+            bot_owners: Vec::new(),
             streaming_enabled: true,
             streaming_min_interval_ms: 1000,
             streaming_min_chars: 50,
@@ -118,6 +120,10 @@ impl Config {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(10),
+            bot_owners: std::env::var("BOT_OWNERS")
+                .ok()
+                .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
+                .unwrap_or_default(),
             // 流式输出配置
             streaming_enabled: std::env::var("STREAMING_ENABLED")
                 .ok()
