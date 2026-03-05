@@ -6,3 +6,4 @@ pub mod conversation;
 pub mod event_handler;
 pub mod modules;
 pub mod traits;
+pub mod ui;

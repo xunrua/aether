@@ -6,6 +6,7 @@ mod conversation;
 mod event_handler;
 mod modules;
 mod traits;
+mod ui;
 
 use anyhow::Result;
 use tracing::info;

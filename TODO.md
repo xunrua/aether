@@ -14,6 +14,7 @@
 - [x] 单元测试框架
 - [x] 命令系统基础结构
 - [x] bot_owners 配置项
+- [x] **命令界面毛玻璃风格模板**（2026-03-05）
 
 ---
 
@@ -29,15 +30,24 @@
 - [x] `src/command/registry.rs` - Handler 注册表
 - [x] `src/command/gateway.rs` - CommandGateway 路由核心
 
-### 0.2 配置扩展
+### 0.2 UI 模块 ✅
+- [x] `src/ui/mod.rs` - UI 模块入口
+- [x] `src/ui/templates.rs` - 毛玻璃风格消息模板
+  - [x] 信息卡片模板 (info_card)
+  - [x] 帮助菜单模板 (help_menu)
+  - [x] 排行榜模板 (leaderboard)
+  - [x] 状态反馈模板 (success/error/warning/info)
+  - [x] 子命令列表模板 (subcommand_list)
+
+### 0.3 配置扩展
 - [x] 添加 `bot_owners` 配置项
 - [ ] 添加 `db_path` 配置项
 
-### 0.3 数据库层
+### 0.4 数据库层
 - [ ] SQLite 集成
 - [ ] migrations 目录
 
-### 0.4 错误处理
+### 0.5 错误处理
 - [ ] 自定义错误类型
 - [ ] 自动重连机制
 
@@ -48,12 +58,12 @@
 ### 指令实现
 - [ ] `!bot name <名称>`
 - [ ] `!bot avatar <url>`
-- [x] `!bot info`
+- [x] `!bot info` - 使用毛玻璃风格卡片
 - [ ] `!bot join <room_id>`
-- [x] `!bot leave`
+- [x] `!bot leave` - 使用毛玻璃风格提示
 - [ ] `!bot rooms`
 - [ ] `!bot prefix <新前缀>`
-- [x] `!ping`
+- [x] `!ping` - 使用毛玻璃风格提示
 
 ---
 
@@ -125,6 +135,8 @@
 
 | 日期 | 内容 |
 |------|------|
+| 2026-03-05 | 命令界面毛玻璃风格模板系统 |
+| 2026-03-05 | Admin 命令使用毛玻璃风格模板 |
 | 2026-03-05 | 命令系统基础结构 |
 | 2026-03-05 | 集成命令系统到 Bot |
 | 2026-03-05 | Admin 模块 (bot info/leave/ping) |
