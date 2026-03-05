@@ -10,6 +10,7 @@ use tracing::debug;
 use super::context::CommandContext;
 use super::parser::Parser;
 use super::registry::CommandRegistry;
+use crate::ui;
 
 /// 命令网关，负责路由分发
 #[derive(Clone)]
@@ -82,12 +83,9 @@ impl CommandGateway {
         let handler = match self.registry.get(parsed.cmd) {
             Some(h) => h,
             None => {
-                // 未知命令
-                let unknown_msg = format!(
-                    "未知命令: {}\n\n使用 !help 查看可用命令",
-                    parsed.cmd
-                );
-                send_text_message(&room, &unknown_msg).await?;
+                // 未知命令 - 使用毛玻璃风格错误提示
+                let html = ui::error("❓", &format!("未知命令: !{}", parsed.cmd));
+                send_html_message(&room, &html, &format!("未知命令: !{}", parsed.cmd)).await?;
                 return Ok(());
             }
         };
@@ -95,11 +93,8 @@ impl CommandGateway {
         // 权限检查
         let permission = handler.permission();
         if !permission.check(&room, &sender, &self.bot_owners).await {
-            let denied_msg = format!(
-                "⛔ 权限不足: 需要 {}",
-                permission.display_name()
-            );
-            send_text_message(&room, &denied_msg).await?;
+            let html = ui::error("⛔", &format!("权限不足: 需要 {}", permission.display_name()));
+            send_html_message(&room, &html, &format!("权限不足: 需要 {}", permission.display_name())).await?;
             return Ok(());
         }
 
@@ -119,16 +114,18 @@ impl CommandGateway {
 
     /// 处理 help 命令
     async fn handle_help(&self, room: &Room) -> Result<()> {
-        let help_text = self.registry.generate_help();
-        send_text_message(room, &help_text).await
+        let html = self.registry.generate_help_html();
+        let plain = self.registry.generate_help();
+        send_html_message(room, &html, &plain).await
     }
 }
 
-/// 发送文本消息
-async fn send_text_message(room: &Room, text: &str) -> Result<()> {
+/// 发送 HTML 消息
+async fn send_html_message(room: &Room, html: &str, plain_fallback: &str) -> Result<()> {
     use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 
-    room.send(RoomMessageEventContent::text_plain(text)).await?;
+    let content = RoomMessageEventContent::text_html(plain_fallback, html);
+    room.send(content).await?;
     Ok(())
 }
 
