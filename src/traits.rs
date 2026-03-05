@@ -10,6 +10,14 @@ pub trait AiServiceTrait: Clone + Send + Sync + 'static {
     /// 普通聊天
     async fn chat(&self, session_id: &str, prompt: &str) -> Result<String>;
 
+    /// 带自定义系统提示词的聊天
+    async fn chat_with_system(
+        &self,
+        session_id: &str,
+        prompt: &str,
+        system_prompt: Option<&str>,
+    ) -> Result<String>;
+
     /// 重置会话
     async fn reset_conversation(&self, session_id: &str);
 
@@ -19,6 +27,17 @@ pub trait AiServiceTrait: Clone + Send + Sync + 'static {
         &self,
         session_id: &str,
         prompt: &str,
+    ) -> Result<(
+        Arc<Mutex<StreamingState>>,
+        Pin<Box<dyn Stream<Item = Result<String>> + Send>>,
+    )>;
+
+    /// 带自定义系统提示词的流式聊天
+    async fn chat_stream_with_system(
+        &self,
+        session_id: &str,
+        prompt: &str,
+        system_prompt: Option<&str>,
     ) -> Result<(
         Arc<Mutex<StreamingState>>,
         Pin<Box<dyn Stream<Item = Result<String>> + Send>>,

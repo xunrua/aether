@@ -73,6 +73,30 @@ impl ConversationManager {
         messages
     }
 
+    /// 获取消息历史，使用自定义系统提示词覆盖默认值
+    pub fn get_messages_with_system(
+        &self,
+        session_id: &str,
+        system_prompt: &str,
+    ) -> Vec<ChatCompletionRequestMessage> {
+        let mut messages = Vec::new();
+
+        // 使用自定义系统提示词
+        messages.push(ChatCompletionRequestMessage::System(
+            ChatCompletionRequestSystemMessage {
+                content: system_prompt.to_string().into(),
+                name: None,
+            },
+        ));
+
+        // 添加历史消息
+        if let Some(history) = self.conversations.get(session_id) {
+            messages.extend(history.clone());
+        }
+
+        messages
+    }
+
     pub fn reset(&mut self, session_id: &str) {
         self.conversations.remove(session_id);
     }

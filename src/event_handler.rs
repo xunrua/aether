@@ -51,6 +51,7 @@ pub struct EventHandler<T: AiServiceTrait> {
     bot_user_id: OwnedUserId,
     command_prefix: String,
     command_gateway: CommandGateway,
+    persona_store: Option<PersonaStore>,
     // 流式输出配置
     streaming_enabled: bool,
     streaming_min_interval: Duration,
@@ -70,8 +71,8 @@ impl<T: AiServiceTrait> EventHandler<T> {
         command_gateway.register(Arc::new(BotPingHandler));
 
         // 注册 Persona 命令处理器（如果有 PersonaStore）
-        if let Some(store) = persona_store {
-            command_gateway.register(Arc::new(PersonaHandler::new(store)));
+        if let Some(ref store) = persona_store {
+            command_gateway.register(Arc::new(PersonaHandler::new(store.clone())));
         }
 
         Self {
@@ -79,6 +80,7 @@ impl<T: AiServiceTrait> EventHandler<T> {
             bot_user_id,
             command_prefix: config.command_prefix.clone(),
             command_gateway,
+            persona_store,
             streaming_enabled: config.streaming_enabled,
             streaming_min_interval: Duration::from_millis(config.streaming_min_interval_ms),
             streaming_min_chars: config.streaming_min_chars,
@@ -163,14 +165,31 @@ impl<T: AiServiceTrait> EventHandler<T> {
             room_id.to_string()
         };
 
+        // 获取房间的人设系统提示词
+        let system_prompt = if let Some(ref store) = self.persona_store {
+            match store.get_room_persona(room_id.as_str()) {
+                Ok(Some(persona)) => {
+                    debug!("使用人设 '{}' 的系统提示词", persona.name);
+                    Some(persona.system_prompt)
+                }
+                Ok(None) => None,
+                Err(e) => {
+                    warn!("获取房间人设失败: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         debug!("处理消息 [{}]: {}", session_id, clean_text);
 
         // 根据配置选择流式或普通响应
         if self.streaming_enabled {
-            self.handle_streaming_response(&room, &session_id, &clean_text)
+            self.handle_streaming_response(&room, &session_id, &clean_text, system_prompt.as_deref())
                 .await?;
         } else {
-            self.handle_normal_response(&room, &session_id, &clean_text)
+            self.handle_normal_response(&room, &session_id, &clean_text, system_prompt.as_deref())
                 .await?;
         }
 
@@ -183,8 +202,9 @@ impl<T: AiServiceTrait> EventHandler<T> {
         room: &Room,
         session_id: &str,
         clean_text: &str,
+        system_prompt: Option<&str>,
     ) -> Result<()> {
-        match self.ai_service.chat(session_id, clean_text).await {
+        match self.ai_service.chat_with_system(session_id, clean_text, system_prompt).await {
             Ok(reply) => {
                 room.send(RoomMessageEventContent::text_plain(reply))
                     .await?;
@@ -207,9 +227,10 @@ impl<T: AiServiceTrait> EventHandler<T> {
         room: &Room,
         session_id: &str,
         clean_text: &str,
+        system_prompt: Option<&str>,
     ) -> Result<()> {
         // 开始流式聊天
-        let (state, mut stream) = match self.ai_service.chat_stream(session_id, clean_text).await {
+        let (state, mut stream) = match self.ai_service.chat_stream_with_system(session_id, clean_text, system_prompt).await {
             Ok(result) => result,
             Err(e) => {
                 warn!("流式 AI 调用初始化失败: {}", e);
@@ -346,12 +367,33 @@ mod tests {
             Ok("mock response".to_string())
         }
 
+        async fn chat_with_system(
+            &self,
+            _session_id: &str,
+            _prompt: &str,
+            _system_prompt: Option<&str>,
+        ) -> anyhow::Result<String> {
+            Ok("mock response".to_string())
+        }
+
         async fn reset_conversation(&self, _session_id: &str) {}
 
         async fn chat_stream(
             &self,
             _session_id: &str,
             _prompt: &str,
+        ) -> anyhow::Result<(
+            std::sync::Arc<tokio::sync::Mutex<crate::ai_service::StreamingState>>,
+            std::pin::Pin<Box<dyn futures_util::Stream<Item = anyhow::Result<String>> + Send>>,
+        )> {
+            unimplemented!()
+        }
+
+        async fn chat_stream_with_system(
+            &self,
+            _session_id: &str,
+            _prompt: &str,
+            _system_prompt: Option<&str>,
         ) -> anyhow::Result<(
             std::sync::Arc<tokio::sync::Mutex<crate::ai_service::StreamingState>>,
             std::pin::Pin<Box<dyn futures_util::Stream<Item = anyhow::Result<String>> + Send>>,
