@@ -20,7 +20,7 @@ mod config_tests {
         assert_eq!(config.openai_base_url, "https://api.openai.com/v1");
         assert_eq!(config.openai_model, "gpt-4o-mini");
         assert_eq!(config.system_prompt, None);
-        assert_eq!(config.command_prefix, "!ai");
+        assert_eq!(config.command_prefix, "!");
         assert_eq!(config.max_history, 10);
         assert!(config.streaming_enabled);
         assert_eq!(config.streaming_min_interval_ms, 1000);
@@ -57,10 +57,12 @@ mod config_tests {
             system_prompt: Some("You are helpful".to_string()),
             command_prefix: "!custom".to_string(),
             max_history: 20,
+            bot_owners: vec!["@admin:matrix.org".to_string()],
             streaming_enabled: false,
             streaming_min_interval_ms: 2000,
             streaming_min_chars: 100,
             log_level: "debug".to_string(),
+            proxy: None,
         };
 
         assert_eq!(config.matrix_homeserver, "https://custom.server");
@@ -93,10 +95,12 @@ mod bot_tests {
             system_prompt: None,
             command_prefix: "!ai".to_string(),
             max_history: 10,
+            bot_owners: vec![],
             streaming_enabled: false,
             streaming_min_interval_ms: 500,
             streaming_min_chars: 10,
             log_level: "info".to_string(),
+            proxy: None,
         }
     }
 

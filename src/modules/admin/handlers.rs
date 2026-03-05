@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 
 use crate::command::{CommandContext, CommandHandler, Permission};
-use crate::ui::{info_card, subcommand_list, success, warning};
+use crate::ui::{info_card, success, warning};
 
 /// Bot 信息命令处理器
 pub struct BotInfoHandler;
@@ -41,12 +41,12 @@ impl CommandHandler for BotInfoHandler {
 
 impl BotInfoHandler {
     async fn handle_help(&self, ctx: &CommandContext<'_>) -> Result<()> {
-        let subcommands = vec![
-            ("info", "查看 Bot 基本信息"),
-            ("ping", "测试响应延迟"),
-            ("leave", "离开当前房间（需要管理员权限）"),
+        let items = vec![
+            ("!bot info", "查看 Bot 基本信息"),
+            ("!bot ping", "测试响应延迟"),
+            ("!bot leave", "离开当前房间（需要管理员权限）"),
         ];
-        let html = subcommand_list("🤖", "Bot 命令", &subcommands);
+        let html = info_card("Bot 命令", &items);
         send_html(&ctx.room, &html).await
     }
 
@@ -70,15 +70,15 @@ impl BotInfoHandler {
             ("用户 ID", user_id.as_str()),
             ("设备 ID", device_id.as_str()),
             ("已加入房间", rooms_str.as_str()),
-            ("运行状态", "✅ 正常运行中"),
+            ("运行状态", "正常运行中"),
         ];
 
-        let html = info_card("🤖", "Bot 信息", &items);
+        let html = info_card("Bot 信息", &items);
         send_html(&ctx.room, &html).await
     }
 
     async fn handle_ping(&self, ctx: &CommandContext<'_>) -> Result<()> {
-        let html = success("🏓", "Pong! 机器人响应正常");
+        let html = success("Pong! 机器人响应正常");
         send_html(&ctx.room, &html).await
     }
 }
@@ -108,7 +108,7 @@ impl CommandHandler for BotLeaveHandler {
         let room_id = ctx.room_id();
 
         // 发送告别消息
-        let html = warning("👋", &format!("再见！正在离开房间 {} ...", room_id));
+        let html = warning(&format!("再见！正在离开房间 {} ...", room_id));
         send_html(&ctx.room, &html).await?;
 
         // 离开房间
@@ -140,7 +140,7 @@ impl CommandHandler for BotPingHandler {
     }
 
     async fn execute(&self, ctx: &CommandContext<'_>) -> Result<()> {
-        let html = success("🏓", "Pong! 机器人响应正常");
+        let html = success("Pong! 机器人响应正常");
         send_html(&ctx.room, &html).await
     }
 }

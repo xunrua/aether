@@ -83,8 +83,8 @@ impl CommandGateway {
         let handler = match self.registry.get(parsed.cmd) {
             Some(h) => h,
             None => {
-                // 未知命令 - 使用毛玻璃风格错误提示
-                let html = ui::error("❓", &format!("未知命令: !{}", parsed.cmd));
+                // 未知命令
+                let html = ui::error(&format!("未知命令: !{}", parsed.cmd));
                 send_html_message(&room, &html, &format!("未知命令: !{}", parsed.cmd)).await?;
                 return Ok(());
             }
@@ -93,7 +93,7 @@ impl CommandGateway {
         // 权限检查
         let permission = handler.permission();
         if !permission.check(&room, &sender, &self.bot_owners).await {
-            let html = ui::error("⛔", &format!("权限不足: 需要 {}", permission.display_name()));
+            let html = ui::error(&format!("权限不足: 需要 {}", permission.display_name()));
             send_html_message(&room, &html, &format!("权限不足: 需要 {}", permission.display_name())).await?;
             return Ok(());
         }
