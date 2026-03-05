@@ -116,8 +116,26 @@ impl PersonaHandler {
                 self.store
                     .set_room_persona(&room_id, &persona_id, &set_by)?;
 
+                // 更新 Bot 的显示名称：原名 (人设名)
+                let account = ctx.client.account();
+                let current_name = account.get_display_name().await.ok().flatten().unwrap_or_else(|| "Aether".to_string());
+
+                // 移除可能存在的旧人设后缀 (xxx)
+                let base_name = current_name
+                    .find(" (")
+                    .map(|pos| current_name[..pos].to_string())
+                    .unwrap_or(current_name);
+
+                let new_display_name = format!("{} ({})", base_name, persona.name);
+                if let Err(e) = account.set_display_name(Some(&new_display_name)).await {
+                    tracing::warn!("更新显示名称失败: {}", e);
+                }
+
                 let emoji = persona.avatar_emoji.as_deref().unwrap_or("");
-                let html = success(&format!("已设置人设: {} {}", emoji, persona.name));
+                let html = success(&format!(
+                    "已设置人设: {} {}\nBot 名称已更新为: {}",
+                    emoji, persona.name, new_display_name
+                ));
                 send_html(&ctx.room, &html).await
             }
             None => {
@@ -140,7 +158,21 @@ impl PersonaHandler {
         let room_id = ctx.room_id().to_string();
         self.store.disable_room_persona(&room_id)?;
 
-        let html = success("已关闭当前房间的人设");
+        // 恢复 Bot 的显示名称：移除人设后缀
+        let account = ctx.client.account();
+        let current_name = account.get_display_name().await.ok().flatten().unwrap_or_else(|| "Aether".to_string());
+
+        // 移除人设后缀 (xxx)
+        let base_name = current_name
+            .find(" (")
+            .map(|pos| current_name[..pos].to_string())
+            .unwrap_or(current_name);
+
+        if let Err(e) = account.set_display_name(Some(&base_name)).await {
+            tracing::warn!("恢复显示名称失败: {}", e);
+        }
+
+        let html = success(&format!("已关闭当前房间的人设\nBot 名称已恢复为: {}", base_name));
         send_html(&ctx.room, &html).await
     }
 
