@@ -85,8 +85,8 @@ impl Bot {
 
         info!("开始同步...");
 
-        // 创建关闭信号通道
-        let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
+        // 创建关闭信号通道（使用 watch 通道存储关闭状态）
+        let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
         // 启动信号监听任务
         tokio::spawn({
@@ -95,7 +95,7 @@ impl Bot {
                 match tokio::signal::ctrl_c().await {
                     Ok(()) => {
                         info!("收到关闭信号，正在停止...");
-                        let _ = shutdown_tx.send(());
+                        let _ = shutdown_tx.send(true);
                     }
                     Err(e) => {
                         tracing::error!("信号监听错误: {}", e);
@@ -107,10 +107,10 @@ impl Bot {
         // 开始同步（使用回调处理错误，实现自动重连和优雅关闭）
         self.client
             .sync_with_result_callback(SyncSettings::new(), move |_result| {
-                let mut shutdown_rx = shutdown_rx.resubscribe();
+                let rx = shutdown_rx.clone();
                 async move {
-                    // 检查关闭信号
-                    if shutdown_rx.try_recv().is_ok() {
+                    // 检查关闭状态
+                    if *rx.borrow() {
                         info!("正在停止同步...");
                         return Ok(LoopCtrl::Break);
                     }
