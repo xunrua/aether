@@ -4,6 +4,7 @@ mod command;
 mod config;
 mod conversation;
 mod event_handler;
+mod modules;
 mod traits;
 
 use anyhow::Result;

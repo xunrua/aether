@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -16,6 +17,7 @@ use tracing::{debug, info, warn};
 
 use crate::command::CommandGateway;
 use crate::config::Config;
+use crate::modules::admin::{BotInfoHandler, BotLeaveHandler, BotPingHandler};
 use crate::traits::AiServiceTrait;
 
 /// 处理房间邀请（独立函数，不依赖 EventHandler 实例）
@@ -55,10 +57,15 @@ pub struct EventHandler<T: AiServiceTrait> {
 
 impl<T: AiServiceTrait> EventHandler<T> {
     pub fn new(ai_service: T, bot_user_id: OwnedUserId, config: &Config) -> Self {
-        let command_gateway = CommandGateway::new(
+        let mut command_gateway = CommandGateway::new(
             config.command_prefix.clone(),
             config.bot_owners.clone(),
         );
+
+        // 注册 Admin 命令处理器
+        command_gateway.register(Arc::new(BotInfoHandler));
+        command_gateway.register(Arc::new(BotLeaveHandler));
+        command_gateway.register(Arc::new(BotPingHandler));
 
         Self {
             ai_service,

@@ -4,4 +4,5 @@ pub mod command;
 pub mod config;
 pub mod conversation;
 pub mod event_handler;
+pub mod modules;
 pub mod traits;
