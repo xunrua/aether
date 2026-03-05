@@ -3,7 +3,9 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
 use anyhow::Result;
-use async_openai::{Client, config::OpenAIConfig, types::CreateChatCompletionRequestArgs};
+use async_openai::config::OpenAIConfig;
+use async_openai::types::chat::CreateChatCompletionRequest;
+use async_openai::Client;
 use futures_util::{Stream, StreamExt};
 
 use crate::config::Config;
@@ -75,10 +77,11 @@ impl AiService {
         };
 
         // 调用 API
-        let request = CreateChatCompletionRequestArgs::default()
-            .model(&self.inner.model)
-            .messages(messages)
-            .build()?;
+        let request = CreateChatCompletionRequest {
+            model: self.inner.model.clone(),
+            messages,
+            ..Default::default()
+        };
 
         let response = self.inner.client.chat().create(request).await?;
 
@@ -126,11 +129,12 @@ impl AiService {
         };
 
         // 创建流式请求
-        let request = CreateChatCompletionRequestArgs::default()
-            .model(&self.inner.model)
-            .messages(messages)
-            .stream(true)
-            .build()?;
+        let request = CreateChatCompletionRequest {
+            model: self.inner.model.clone(),
+            messages,
+            stream: Some(true),
+            ..Default::default()
+        };
 
         let stream = self.inner.client.chat().create_stream(request).await?;
 
